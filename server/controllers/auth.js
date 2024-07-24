@@ -36,6 +36,8 @@ export const signup = async (req, res) => {
             success: true,
             message: "User created successfully",
             data: userInfo,
+            accessToken: userInfo.accessToken,
+            expiresIn: userInfo.expiresIn,
           });
       })
       .catch((error) => {
@@ -52,21 +54,44 @@ export const signup = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  const { email, password } = req.body;
-  signInWithEmailAndPassword(auth, email, password)
-    .then((userCredential) => {
-      // Signed in
-      const user = userCredential.user;
-      res.status(201).json(user);
-    })
-    .catch((error) => {
-      const errorCode = error.code;
-      const errorMessage = error.message;
-      console.error(errorCode);
-      res.status(401).json(errorMessage);
+  const { username, password } = req.body;
+  let user = await User.findOne({ username });
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      errorCode: "auth/invalid-credential",
     });
+  } else {
+    await signInWithEmailAndPassword(auth, user.email, password)
+      .then((userCredential) => {
+        const userInfo = userCredential.user;
+        res
+          .status(201)
+          .cookie("accessToken", userInfo.accessToken, {
+            httpOnly: true,
+            expires: userInfo.expirationTime,
+          })
+          .json({
+            success: true,
+            message: "User logged in successfully",
+            data: user,
+            accessToken: userInfo.accessToken,
+            expiresIn: userInfo.expiresIn,
+          });
+      })
+      .catch((error) => {
+        const errorCode = error.code;
+        const errorMessage = error.message;
+        console.error(errorCode);
+        res.status(401).json({
+          success: false,
+          message: errorMessage,
+          errorCode: errorCode,
+        });
+      });
+  }
 };
 
 export const signout = (req, res) => {
-  res.clearCookie("access_token").status(200).json("Signout success!");
+  res.clearCookie("accessToken").status(200).json("Signout success!");
 };
